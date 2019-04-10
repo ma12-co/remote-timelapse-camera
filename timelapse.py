@@ -1,26 +1,11 @@
-#changelog: files actually do rename now
+#changelog: uploads the files to the server via ftp
 
 
 from time import sleep
 from datetime import datetime
 from sh import gphoto2 as gp
-import signal, os, subprocess
-
-#kill gphoto2process that
-#starts whenever we connect the
-#camera
-
-def killgphoto2Process ():
-    p = subprocess.Popen(['ps', '-A'], stdout=subprocess.PIPE)
-    out, err = p.communicate ()
-
-    # Search for the line that has the process
-    #we want to kill
-    for line in out.splitlines ():
-        if b'gvfs-gphoto2-vo' in line:
-            #kill the process!
-            pid = int(line.split (None, 1) [0])
-            os.kill(pid, signal.SIGKILL)
+import ftplib
+import os
 
 
 
@@ -44,14 +29,43 @@ def renameFiles (ID):
                 os.rename (filename, ( ID + shot_time + ".arw"))
                 print ("arw renamed")
 
+#sends the file to server
+def upload():
+    print ("connecting")
+    #ftp connection (server, user,pass)
+    ftp = ftplib.FTP('mrcmrc.ddns.net','pi','esteesuntimelapsemuylargo')
+
+    #folder from which to upload
+    template_dir = '/home/pi/captures/'
+
+    print ("uploading")
+    #iterate through dirs and files 
+    for root, dirs, files in os.walk(template_dir, topdown=True):
+        relative = root[len(template_dir):].lstrip(os.sep)
+       #enters dirs 
+        for d in dirs:
+            ftp.mkd(os.path.join(relative, d))
+        #uploads files
+        for f in files:
+            ftp.cwd(relative)
+            ftp.storbinary('STOR ' + f, open(os.path.join(template_dir, relative, f), 'rb'))
+            ftp.cwd('/')
+
+    ftp.quit()
+
+    print ('all files have been uploaded successfully')
+
+
 
 while True:
-    killgphoto2Process()
     #get date and time at eac iteration of the loop
     shot_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     captureImages()
+    print ("downloading from camera")
     renameFiles(picID)
-
+    upload()
+    
+   
 
 #check the cron function to trigger shots at specific times 
                 
